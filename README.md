@@ -31,11 +31,19 @@ specialist sub-agents rather than one monolithic agent.
   matching specialist -- it never collects credentials or builds requests
   itself.
 - **`jira_data_source_agent`** (`provisioner/sub_agents/jira_agent.py`):
-  conversationally collects Jira Cloud/Data Center connection details. For
-  Jira Cloud, it verifies the email/API token against Jira's own API
-  (`verify_jira_authentication` in `provisioner/tools/jira_tools.py`) --
-  mirroring the console's "Verify authentication" step -- before asking for
-  the remaining fields and provisioning.
+  conversationally collects Jira connection details. Jira Cloud and Jira
+  Data Center authenticate completely differently, so they diverge:
+  - **Jira Cloud** uses an OAuth 2.0 ("3LO") app from the Atlassian
+    Developer Console (Client ID/secret). `verify_jira_cloud_oauth` in
+    `provisioner/tools/jira_tools.py` runs the actual interactive consent
+    flow -- it prints an authorization URL, waits for the browser redirect
+    on a local listener, exchanges the code for a token, and calls
+    Atlassian's `accessible-resources` endpoint to confirm it worked and
+    discover the site's instance ID/URI -- before asking for the
+    remaining fields.
+  - **Jira Data Center** fields (site URL + email + API token) are an
+    unverified placeholder pending confirmation against the official
+    docs; there is no verification tool for it yet.
 - **`sharepoint_data_source_agent`** (`provisioner/sub_agents/sharepoint_agent.py`):
   conversationally collects SharePoint Online connection details, then calls
   tools in `provisioner/tools/sharepoint_tools.py`.
@@ -91,13 +99,18 @@ export GOOGLE_API_KEY=...   # or configure Vertex AI application-default credent
 python cli.py
 ```
 
-Example session (dry run, Jira):
+Example session (dry run, Jira Cloud):
 
 ```
 you> I want to connect Jira
-agent> ...asks for project id, location, collection id, display name, deployment type, site URL, email, token env var name, project keys...
-you> project id my-company-prod, location us, collection id jira-eng, display name "Jira Engineering", cloud, https://mycompany.atlassian.net, me@mycompany.com, JIRA_API_TOKEN, ENG
-agent> [shows the built request body with the token redacted, and the curl command -- nothing was sent]
+agent> ...asks deployment type, then the OAuth app's Client ID and the name of the env var holding the Client secret...
+you> cloud, client id abc123, secret is in JIRA_CLOUD_CLIENT_SECRET
+agent> [calls verify_jira_cloud_oauth -- prints an authorization URL and waits
+        for you to approve it in a browser, then confirms the detected Jira
+        site] ...asks for project id, location, collection id, display name,
+        project keys...
+you> project id my-company-prod, location us, collection id jira-eng, display name "Jira Engineering", ENG
+agent> [shows the built request body with the client secret redacted, and the curl command -- nothing was sent]
 ```
 
 To actually execute a call once you've reviewed the dry run, export the
