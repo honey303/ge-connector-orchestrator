@@ -5,6 +5,13 @@ Grounded on:
   - Jira Data Center setup: references.JIRA_DATA_CENTER_SETUP
   - The DataConnector resource / setUpDataConnector RPC:
     references.DATACONNECTOR_REST_REFERENCE, references.SETUP_DATA_CONNECTOR_RPC
+  - The *exact request shape* is verified against
+    references.DISCOVERY_ENGINE_API_DISCOVERY_DOC (the API's own
+    machine-readable schema, fetched directly from the API host) --
+    docs pages describe the connector, but this is what confirmed
+    collectionDisplayName is a top-level request field (not nested under
+    dataConnector, and not called dataStoreDisplayName) and that
+    entityName must be the literal "Issue" for Jira.
 
 Gemini Enterprise provisions a connector-backed data source by calling
 `projects.locations:setUpDataConnector` on the Discovery Engine API, which
@@ -287,7 +294,7 @@ def build_jira_cloud_data_source_request(
     project_id: str,
     location: str,
     collection_id: str,
-    data_store_display_name: str,
+    collection_display_name: str,
     client_id: str,
     client_secret_env_var: str,
     instance_uri: str,
@@ -304,7 +311,10 @@ def build_jira_cloud_data_source_request(
         project_id: Target GCP project id.
         location: Gemini Enterprise location ("global", "us", or "eu").
         collection_id: Id for the new Collection that will hold this data source.
-        data_store_display_name: Human-readable name shown in the console.
+        collection_display_name: Human-readable name for the Collection,
+            shown in the console. Required top-level field on the
+            SetUpDataConnectorRequest (collectionDisplayName) -- confirmed
+            against discoveryengine's own API discovery document.
         client_id: The OAuth 2.0 (3LO) app's Client ID.
         client_secret_env_var: Name of an environment variable, already
             exported in the operator's shell, that holds the app's Client
@@ -338,8 +348,15 @@ def build_jira_cloud_data_source_request(
 
     parent = f"projects/{project_id}/locations/{location}"
 
+    # entities[].entityName is an enum-like value specific to each data
+    # source, not a free label -- discoveryengine's DataConnectorSourceEntity
+    # schema explicitly documents "Issue" (singular, capitalized) as the
+    # only supported value for Jira. "issues"/"comments"/"users" (an earlier
+    # guess in this file) are not valid and would be rejected the same way
+    # dataStoreDisplayName was.
     request_body = {
         "collectionId": collection_id,
+        "collectionDisplayName": collection_display_name,
         "dataConnector": {
             "dataSource": "jira",
             "params": {
@@ -351,13 +368,8 @@ def build_jira_cloud_data_source_request(
                 "project_keys": project_keys,
             },
             "refreshInterval": "86400s",
-            "entities": [
-                {"entityName": "issues"},
-                {"entityName": "comments"},
-                {"entityName": "users"},
-            ],
+            "entities": [{"entityName": "Issue"}],
         },
-        "dataStoreDisplayName": data_store_display_name,
     }
 
     url = f"{references.DISCOVERY_ENGINE_API_HOST}/v1alpha/{parent}:setUpDataConnector"
@@ -382,7 +394,7 @@ def create_jira_cloud_data_source(
     project_id: str,
     location: str,
     collection_id: str,
-    data_store_display_name: str,
+    collection_display_name: str,
     client_id: str,
     client_secret_env_var: str,
     instance_uri: str,
@@ -410,7 +422,7 @@ def create_jira_cloud_data_source(
         project_id=project_id,
         location=location,
         collection_id=collection_id,
-        data_store_display_name=data_store_display_name,
+        collection_display_name=collection_display_name,
         client_id=client_id,
         client_secret_env_var=client_secret_env_var,
         instance_uri=instance_uri,
@@ -482,7 +494,7 @@ def build_jira_data_center_data_source_request(
     project_id: str,
     location: str,
     collection_id: str,
-    data_store_display_name: str,
+    collection_display_name: str,
     site_url: str,
     user_email: str,
     api_token_env_var: str,
@@ -503,7 +515,10 @@ def build_jira_data_center_data_source_request(
         project_id: Target GCP project id.
         location: Gemini Enterprise location ("global", "us", or "eu").
         collection_id: Id for the new Collection that will hold this data source.
-        data_store_display_name: Human-readable name shown in the console.
+        collection_display_name: Human-readable name for the Collection,
+            shown in the console. Required top-level field on the
+            SetUpDataConnectorRequest (collectionDisplayName) -- confirmed
+            against discoveryengine's own API discovery document.
         site_url: The Jira Data Center base URL.
         user_email: The email address associated with the Jira API token.
         api_token_env_var: Name of an environment variable, already exported
@@ -537,6 +552,7 @@ def build_jira_data_center_data_source_request(
 
     request_body = {
         "collectionId": collection_id,
+        "collectionDisplayName": collection_display_name,
         "dataConnector": {
             "dataSource": "jira_data_center",
             "params": {
@@ -547,13 +563,8 @@ def build_jira_data_center_data_source_request(
                 "project_keys": project_keys,
             },
             "refreshInterval": "86400s",
-            "entities": [
-                {"entityName": "issues"},
-                {"entityName": "comments"},
-                {"entityName": "users"},
-            ],
+            "entities": [{"entityName": "Issue"}],
         },
-        "dataStoreDisplayName": data_store_display_name,
     }
 
     url = f"{references.DISCOVERY_ENGINE_API_HOST}/v1alpha/{parent}:setUpDataConnector"
@@ -572,8 +583,10 @@ def build_jira_data_center_data_source_request(
         "required_iam_role": references.REQUIRED_IAM_ROLE,
         "reference": references.JIRA_DATA_CENTER_SETUP,
         "warning": (
-            "These field names are unverified for Jira Data Center -- "
-            "confirm against the official docs before relying on this."
+            "These param field names are unverified for Jira Data Center -- "
+            "confirm against the official docs before relying on this. "
+            "(The request's top-level shape and entityName='Issue' ARE "
+            "confirmed against discoveryengine's API discovery document.)"
         ),
     }
 
@@ -582,7 +595,7 @@ def create_jira_data_center_data_source(
     project_id: str,
     location: str,
     collection_id: str,
-    data_store_display_name: str,
+    collection_display_name: str,
     site_url: str,
     user_email: str,
     api_token_env_var: str,
@@ -611,7 +624,7 @@ def create_jira_data_center_data_source(
         project_id=project_id,
         location=location,
         collection_id=collection_id,
-        data_store_display_name=data_store_display_name,
+        collection_display_name=collection_display_name,
         site_url=site_url,
         user_email=user_email,
         api_token_env_var=api_token_env_var,

@@ -24,7 +24,7 @@ def build_sharepoint_data_source_request(
     project_id: str,
     location: str,
     collection_id: str,
-    data_store_display_name: str,
+    collection_display_name: str,
     connection_mode: str,
     instance_uri: str,
     tenant_id: str,
@@ -37,7 +37,10 @@ def build_sharepoint_data_source_request(
         project_id: Target GCP project id.
         location: Gemini Enterprise location ("global", "us", or "eu").
         collection_id: Id for the new Collection that will hold this data source.
-        data_store_display_name: Human-readable name shown in the console.
+        collection_display_name: Human-readable name for the Collection,
+            shown in the console. Required top-level field on the
+            SetUpDataConnectorRequest (collectionDisplayName) -- confirmed
+            against discoveryengine's own API discovery document.
         connection_mode: "federated_search" (query-time federation, GA) or
             "data_ingestion" (indexes content into Gemini Enterprise, GA).
         instance_uri: SharePoint site URL, e.g.
@@ -92,8 +95,16 @@ def build_sharepoint_data_source_request(
         else "sharepoint"
     )
 
+    # entities[].entityName is an enum-like value specific to each data
+    # source, not a free label. discoveryengine's DataConnectorSourceEntity
+    # schema only documents supported values for Salesforce, Jira, and
+    # Confluence -- SharePoint isn't listed, so "sites"/"documents" below
+    # are an unverified guess, the same kind of mistake that made
+    # dataStoreDisplayName fail for Jira. Confirm against
+    # references.SHAREPOINT_SETUP before relying on this in production.
     request_body = {
         "collectionId": collection_id,
+        "collectionDisplayName": collection_display_name,
         "dataConnector": {
             "dataSource": data_source,
             "params": {
@@ -106,7 +117,6 @@ def build_sharepoint_data_source_request(
             "refreshInterval": "86400s",
             "entities": [{"entityName": "sites"}, {"entityName": "documents"}],
         },
-        "dataStoreDisplayName": data_store_display_name,
     }
 
     url = f"{references.DISCOVERY_ENGINE_API_HOST}/v1alpha/{parent}:setUpDataConnector"
@@ -129,6 +139,11 @@ def build_sharepoint_data_source_request(
             else references.SHAREPOINT_SETUP
         ),
         "prerequisite_reference": references.ENTRA_ID_SETUP,
+        "warning": (
+            "entities[].entityName values ('sites', 'documents') are "
+            "unverified for SharePoint -- discoveryengine's schema only "
+            "confirms entity names for Salesforce/Jira/Confluence."
+        ),
     }
 
 
@@ -136,7 +151,7 @@ def create_sharepoint_data_source(
     project_id: str,
     location: str,
     collection_id: str,
-    data_store_display_name: str,
+    collection_display_name: str,
     connection_mode: str,
     instance_uri: str,
     tenant_id: str,
@@ -164,7 +179,7 @@ def create_sharepoint_data_source(
         project_id=project_id,
         location=location,
         collection_id=collection_id,
-        data_store_display_name=data_store_display_name,
+        collection_display_name=collection_display_name,
         connection_mode=connection_mode,
         instance_uri=instance_uri,
         tenant_id=tenant_id,

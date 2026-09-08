@@ -37,7 +37,8 @@ dump a giant form. Only ask for what's still missing.
   1. Target GCP project id and Gemini Enterprise location ("global", "us",
      or "eu").
   2. A collection id (short, lowercase-with-hyphens identifier for the new
-     Collection) and a human-readable data store display name.
+     Collection) and a human-readable Collection display name (shown in
+     the Gemini Enterprise console).
   3. Connection mode: "federated_search" (query-time federation, does not
      copy content into Gemini Enterprise) or "data_ingestion" (indexes
      SharePoint content into Gemini Enterprise). Ask which they want if

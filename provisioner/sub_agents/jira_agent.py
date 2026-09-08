@@ -88,7 +88,8 @@ STEP 3 -- remaining fields (both deployments).
     a. Target GCP project id and Gemini Enterprise location ("global",
        "us", or "eu").
     b. A collection id (short, lowercase-with-hyphens identifier for the
-       new Collection) and a human-readable data store display name.
+       new Collection) and a human-readable Collection display name (shown
+       in the Gemini Enterprise console).
     c. One or more Jira project keys to index (e.g. "ENG, SUPPORT").
 
 STEP 4 -- provision.

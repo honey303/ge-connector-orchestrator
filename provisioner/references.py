@@ -45,3 +45,17 @@ SETUP_DATA_CONNECTOR_RPC = (
 
 REQUIRED_IAM_ROLE = "roles/discoveryengine.editor"
 DISCOVERY_ENGINE_API_HOST = "https://discoveryengine.googleapis.com"
+
+# The API's own machine-readable schema, served directly by the API host
+# rather than a docs site. This is the primary source of truth for the
+# *shape* of setUpDataConnector's request (SetUpDataConnectorRequest,
+# DataConnector, DataConnectorSourceEntity) -- e.g. it is what caught
+# dataStoreDisplayName being wrong (the real field is the request's
+# top-level collectionDisplayName) and entityName needing the literal
+# value "Issue" for Jira. It does NOT cover connector-specific `params`
+# keys (client_id, instance_uri, etc.), which remain sourced from the
+# per-connector setup docs above and are noted as unverified where not
+# confirmed there.
+DISCOVERY_ENGINE_API_DISCOVERY_DOC = (
+    f"{DISCOVERY_ENGINE_API_HOST}/$discovery/rest?version=v1alpha"
+)
