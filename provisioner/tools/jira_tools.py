@@ -29,6 +29,98 @@ def _reference_for(jira_deployment: str) -> str:
     )
 
 
+def verify_jira_authentication(
+    site_url: str,
+    user_email: str,
+    api_token_env_var: str,
+) -> dict:
+    """Verify Jira Cloud credentials before provisioning a data source.
+
+    Jira Cloud only. Calls Jira's own API (GET /rest/api/3/myself) with HTTP
+    Basic auth (email + API token) so a bad email/token/site URL is caught
+    immediately -- this mirrors the "Verify authentication" step in the
+    Gemini Enterprise console, which does the same live check before
+    letting you pick projects to index. It does not touch Google Cloud at
+    all. As with the token itself, only the env var name is accepted here,
+    never the token value.
+
+    Args:
+        site_url: The Jira Cloud site URL, e.g. "https://yourcompany.atlassian.net".
+        user_email: The email address associated with the Jira API token.
+        api_token_env_var: Name of an environment variable, already exported
+            in the operator's shell, that holds the Jira API token.
+
+    Returns:
+        A dict with keys: status ("ok"/"error"), authenticated (bool), and
+        on success "jira_account" (display name or email of the
+        authenticated user), or on failure "message" explaining what to fix.
+    """
+    token = os.environ.get(api_token_env_var)
+    if not token:
+        return {
+            "status": "error",
+            "authenticated": False,
+            "message": (
+                f"Environment variable '{api_token_env_var}' is not set (or "
+                "empty) in this shell. Export it with your Jira API token "
+                "before continuing, e.g.: export "
+                f"{api_token_env_var}=your-jira-api-token"
+            ),
+        }
+
+    try:
+        import requests
+    except ImportError as exc:
+        return {
+            "status": "error",
+            "authenticated": False,
+            "message": f"'requests' must be installed to verify authentication ({exc}).",
+        }
+
+    url = f"{site_url.rstrip('/')}/rest/api/3/myself"
+    try:
+        resp = requests.get(
+            url,
+            auth=(user_email, token),
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        return {
+            "status": "error",
+            "authenticated": False,
+            "message": f"Could not reach '{site_url}': {exc}",
+        }
+
+    if resp.status_code == 200:
+        who = resp.json()
+        return {
+            "status": "ok",
+            "authenticated": True,
+            "jira_account": who.get("displayName") or who.get("emailAddress") or user_email,
+        }
+
+    if resp.status_code == 401:
+        return {
+            "status": "error",
+            "authenticated": False,
+            "http_status": 401,
+            "message": (
+                "Jira rejected these credentials (401 Unauthorized). Confirm "
+                "the email matches the account the API token belongs to, "
+                f"and that the token in ${api_token_env_var} hasn't expired "
+                "or been revoked."
+            ),
+        }
+
+    return {
+        "status": "error",
+        "authenticated": False,
+        "http_status": resp.status_code,
+        "message": f"Unexpected response from Jira ({resp.status_code}): {resp.text[:300]}",
+    }
+
+
 def build_jira_data_source_request(
     project_id: str,
     location: str,

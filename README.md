@@ -31,8 +31,11 @@ specialist sub-agents rather than one monolithic agent.
   matching specialist -- it never collects credentials or builds requests
   itself.
 - **`jira_data_source_agent`** (`provisioner/sub_agents/jira_agent.py`):
-  conversationally collects Jira Cloud/Data Center connection details, then
-  calls tools in `provisioner/tools/jira_tools.py`.
+  conversationally collects Jira Cloud/Data Center connection details. For
+  Jira Cloud, it verifies the email/API token against Jira's own API
+  (`verify_jira_authentication` in `provisioner/tools/jira_tools.py`) --
+  mirroring the console's "Verify authentication" step -- before asking for
+  the remaining fields and provisioning.
 - **`sharepoint_data_source_agent`** (`provisioner/sub_agents/sharepoint_agent.py`):
   conversationally collects SharePoint Online connection details, then calls
   tools in `provisioner/tools/sharepoint_tools.py`.
